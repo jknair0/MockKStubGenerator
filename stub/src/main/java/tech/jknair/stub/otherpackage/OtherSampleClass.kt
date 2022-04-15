@@ -1,4 +1,4 @@
-package tech.jknair.stub
+package tech.jknair.stub.otherpackage
 
 import tech.jknair.processor.annotations.StubFactory
 import tech.jknair.simpleksp.SomeOtherRepository
@@ -8,6 +8,6 @@ import tech.jknair.simpleksp.SomeRepository
     SomeRepository::class,
     SomeOtherRepository::class
 )
-interface SampleClass {
+interface OtherSampleClass {
 
 }

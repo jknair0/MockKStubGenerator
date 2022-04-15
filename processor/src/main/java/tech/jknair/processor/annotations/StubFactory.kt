@@ -1,4 +1,4 @@
-package tech.jknair.processor
+package tech.jknair.processor.annotations
 
 import kotlin.reflect.KClass
 
