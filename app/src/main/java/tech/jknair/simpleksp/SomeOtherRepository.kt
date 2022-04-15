@@ -10,4 +10,11 @@ interface SomeOtherRepository {
 
     fun funWithHalfDefaultParams(code: Int = -1, message: String)
 
+    fun funWithGenericDefaultParams(
+        someRandomPair: Pair<Map<out CharSequence, SomeRepository>, HashSet<in SomeOtherRepository?>>? = Pair(
+            mapOf(),
+            hashSetOf()
+        )
+    )
+
 }

@@ -116,7 +116,6 @@ class MySymbolProcessor(
                 val type: KSTypeReference = argument.type
                 val resolvedArgumentType: KSType = type.resolve()
                 val argType: String = resolvedArgumentType.declaration.qualifiedName!!.asString()
-                val nullability = "?".takeIf { resolvedArgumentType.nullability == NULLABLE }.orEmpty()
                 // argumentName: ObjectType
                 // eg:
                 // name: String,
@@ -124,7 +123,10 @@ class MySymbolProcessor(
                 file += "\n\t\t$argName: $argType"
                 // processing generic types
                 visitTypeArguments(type.element?.typeArguments ?: emptyList())
-                file += "${nullability},"
+                // nullability
+                file += "?".takeIf { resolvedArgumentType.nullability == NULLABLE }.orEmpty()
+
+                file += ","
             }
             file += "\n\t) {"
             file += ""
