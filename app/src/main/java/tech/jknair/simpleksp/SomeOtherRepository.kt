@@ -17,4 +17,14 @@ interface SomeOtherRepository {
         )
     )
 
+    fun funWithGenericDefaultParamsWithStar(
+        pair: Pair<*, HashMap<String, *>>
+    )
+
+    suspend fun suspendFunction()
+
+    fun funTheReturns(code: Int, message: String): HashMap<Pair<String, *>, String?>
+
+    suspend fun suspendFunTheReturns(code: Int, message: String): HashMap<Pair<String, *>, String?>
+
 }

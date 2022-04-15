@@ -7,6 +7,7 @@ import com.google.devtools.ksp.symbol.KSType
 import com.google.devtools.ksp.symbol.KSTypeArgument
 import com.google.devtools.ksp.symbol.KSTypeReference
 import com.google.devtools.ksp.symbol.KSVisitorVoid
+import com.google.devtools.ksp.symbol.Modifier.SUSPEND
 import com.google.devtools.ksp.symbol.Nullability.NULLABLE
 import com.google.devtools.ksp.symbol.Variance
 import com.google.devtools.ksp.symbol.Variance.CONTRAVARIANT
@@ -20,25 +21,30 @@ internal class StubTargetVisitor(
     private val logger: KSPLogger
 ) : KSVisitorVoid() {
 
+    private lateinit var targetClassName: String
+
     override fun visitClassDeclaration(classDeclaration: KSClassDeclaration, data: Unit) {
-        file += "class Stub${classDeclaration.simpleName.asString()} {\n"
+        targetClassName = classDeclaration.simpleName.asString()
+        val targetClassFullyQualifiedName = classDeclaration.qualifiedName!!.asString()
+        file += "class Stub$targetClassName(private val mocked${targetClassName}: ${targetClassFullyQualifiedName}) {\n"
         val functions = classDeclaration.getAllFunctions()
         for (function in functions) {
             function.accept(this, Unit)
         }
         file += "\n}"
-        file += "\n"
+        file += "\n\n"
     }
 
     override fun visitFunctionDeclaration(function: KSFunctionDeclaration, data: Unit) {
         val functionName = function.simpleName.asString()
-        if (functionName in OBJECT_FUNCTIONS) {
+        if (functionName in IN_BUILT_FUNCTIONS) {
             return
         }
         // an empty line before function declaration
         file += "\n"
         file += "\tfun $functionName("
         val functionArguments = function.parameters
+        val argsNames = mutableListOf<String>()
         for (argument in functionArguments) {
             val argName = argument.name!!.asString()
             val type: KSTypeReference = argument.type
@@ -55,9 +61,28 @@ internal class StubTargetVisitor(
             file += "?".takeIf { resolvedArgumentType.nullability == NULLABLE }.orEmpty()
 
             file += ","
+
+            argsNames.add(argName)
         }
-        file += "\n\t) {"
-        file += ""
+
+        val returnValueAvailable: Boolean
+        val returnType = function.returnType?.resolve()?.declaration?.qualifiedName?.asString()
+        if (returnType != null && returnType != UNIT_TYPE) {
+            file += "\n\t\t$RETURN_VALUE_ARG_NAME: $returnType"
+            visitTypeArguments(function.returnType?.element?.typeArguments ?: emptyList())
+            returnValueAvailable = true
+        } else {
+            returnValueAvailable = false
+        }
+
+        file += "\n\t) {\n"
+
+        val argsStr = argsNames.joinToString()
+        val isSuspendFunction = function.modifiers.contains(SUSPEND)
+        val mockkFunction = if (isSuspendFunction) MOCKK_CO_EVERY else MOCKK_EVERY
+        val returnValue = if (returnValueAvailable) RETURN_VALUE_ARG_NAME else UNIT_TYPE
+        file += "\t\t$mockkFunction { mocked$targetClassName.${functionName}($argsStr) } returns $returnValue\n"
+
         file += "\t}\n"
         // an empty line after function
     }
@@ -100,7 +125,13 @@ internal class StubTargetVisitor(
     }
 
     companion object {
-        private val OBJECT_FUNCTIONS = setOf("equals", "hashCode", "toString")
+        private const val UNIT_TYPE = "kotlin.Unit"
+        private val IN_BUILT_FUNCTIONS = setOf("equals", "hashCode", "toString", "<init>")
+
+        private const val RETURN_VALUE_ARG_NAME = "stub_returnValue"
+
+        private const val MOCKK_EVERY = "io.mockk.every"
+        private const val MOCKK_CO_EVERY = "io.mockk.coEvery"
     }
 
 }

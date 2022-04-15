@@ -12,8 +12,6 @@ import tech.jknair.stub.StubSomeRepository
  */
 class ExampleUnitTest {
 
-    private val stubSomeRepository: StubSomeRepository = StubSomeRepository()
-
     @Test
     fun addition_isCorrect() {
         assertEquals(4, 2 + 2)
