@@ -10,6 +10,4 @@ import tech.jknair.simpleksp.SomeRepository
     SomeOtherRepository::class,
     SomeConcreteClass::class
 )
-interface SampleClass {
-
-}
+interface SampleClass

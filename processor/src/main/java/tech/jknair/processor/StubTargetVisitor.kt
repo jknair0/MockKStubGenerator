@@ -26,7 +26,8 @@ internal class StubTargetVisitor(
     override fun visitClassDeclaration(classDeclaration: KSClassDeclaration, data: Unit) {
         targetClassName = classDeclaration.simpleName.asString()
         val targetClassFullyQualifiedName = classDeclaration.qualifiedName!!.asString()
-        file += "class Stub$targetClassName(private val mocked${targetClassName}: ${targetClassFullyQualifiedName}) {\n"
+        file += "class Stub$targetClassName(private val mocked${targetClassName}: $targetClassFullyQualifiedName = io.mockk.mockk()) {\n"
+
         val functions = classDeclaration.getAllFunctions()
         for (function in functions) {
             function.accept(this, Unit)
@@ -132,6 +133,7 @@ internal class StubTargetVisitor(
 
         private const val MOCKK_EVERY = "io.mockk.every"
         private const val MOCKK_CO_EVERY = "io.mockk.coEvery"
+        private const val MOCKK_INIT_CALL = "io.mockk.mockk()"
     }
 
 }

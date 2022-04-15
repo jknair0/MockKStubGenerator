@@ -3,7 +3,7 @@ package tech.jknair.simpleksp
 import org.junit.Test
 
 import org.junit.Assert.*
-import tech.jknair.stub.StubSomeRepository
+import tech.jknair.simpleksp.StubSomeRepository
 
 /**
  * Example local unit test, which will execute on the development machine (host).
