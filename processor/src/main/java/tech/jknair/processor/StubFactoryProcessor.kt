@@ -5,12 +5,13 @@ import com.google.devtools.ksp.processing.Dependencies
 import com.google.devtools.ksp.processing.KSPLogger
 import com.google.devtools.ksp.processing.Resolver
 import com.google.devtools.ksp.processing.SymbolProcessor
-import com.google.devtools.ksp.symbol.ClassKind
+import com.google.devtools.ksp.symbol.ClassKind.INTERFACE
 import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSFunctionDeclaration
 import com.google.devtools.ksp.symbol.KSType
 import com.google.devtools.ksp.symbol.KSTypeArgument
+import com.google.devtools.ksp.symbol.KSTypeReference
 import com.google.devtools.ksp.symbol.KSValueArgument
 import com.google.devtools.ksp.symbol.KSVisitorVoid
 import com.google.devtools.ksp.symbol.Nullability.NULLABLE
@@ -28,29 +29,37 @@ class MySymbolProcessor(
 ) : SymbolProcessor {
 
     override fun process(resolver: Resolver): List<KSAnnotated> {
-        // Get the KSClassDeclaration with StubFactory Annotations
-        val symbols = resolver.getSymbolsWithAnnotation(StubFactory::class.java.canonicalName)
+        val annotatedClasses = resolver.getSymbolsWithAnnotation(StubFactory::class.java.canonicalName)
             .filterIsInstance<KSClassDeclaration>()
-
-        // If no classes annotated
-        if (!symbols.iterator().hasNext()) return emptyList()
-
-        val file: OutputStream = codeGenerator.createNewFile(
-            dependencies = Dependencies(false, *resolver.getAllFiles().toList().toTypedArray()),
-            packageName = "tech.jknair.stubs",
-            fileName = "GeneratedStubs"
-        )
-
-        for (symbol in symbols) {
-            symbol.accept(StubFactoryAnnotationVisitor(file, logger), Unit)
+        if (!annotatedClasses.iterator().hasNext()) {
+            return emptyList()
         }
-
-        file.close()
-        return symbols.filterNot { it.validate() }.toList()
+        // the class that declares the required Stub should be an interface
+        if (annotatedClasses.any { it.classKind != INTERFACE }) {
+            logger.error("Only interfaces should be annotated with ${StubFactory::class.java.canonicalName}")
+            annotatedClasses.filter { it.classKind != INTERFACE }.forEach { annotatedClass ->
+                logger.error("Not an interface", annotatedClass)
+            }
+            return emptyList()
+        }
+        for (annotatedClass in annotatedClasses) {
+            // get declared interface package name
+            val packageName = annotatedClass.packageName.asString()
+            val file: OutputStream = codeGenerator.createNewFile(
+                dependencies = Dependencies(false, *resolver.getAllFiles().toList().toTypedArray()),
+                packageName = packageName,
+                fileName = "${annotatedClass.simpleName.asString()}_TestStubs"
+            )
+            // using the same package name
+            file += "package ${packageName}\n\n"
+            annotatedClass.accept(StubFactoryAnnotationVisitor(file, logger), Unit)
+            file.close()
+        }
+        return annotatedClasses.filterNot { it.validate() }.toList()
     }
 
     private operator fun OutputStream.plusAssign(content: String) {
-        this.write((content + "\n").toByteArray())
+        this.write((content).toByteArray())
     }
 
     inner class StubFactoryAnnotationVisitor(
@@ -59,14 +68,6 @@ class MySymbolProcessor(
     ) : KSVisitorVoid() {
 
         override fun visitClassDeclaration(classDeclaration: KSClassDeclaration, data: Unit) {
-            if (classDeclaration.classKind != ClassKind.INTERFACE) {
-                logger.error("Only class should be annotated with @TargetAnnotation", classDeclaration)
-                return
-            }
-            val packageName = classDeclaration.packageName
-
-            file += "package ${packageName.asString()}\n"
-
             val stubFactoryAnnotation = classDeclaration.annotations.first {
                 it.shortName.asString() == StubFactory::class.simpleName
             }
@@ -75,62 +76,71 @@ class MySymbolProcessor(
                 arg.name?.asString() == "targetClass"
             }
 
-            val listOfClassTypeToCreateStub = targetClassArgument.value as ArrayList<*>
+            val targetClasses = targetClassArgument.value as ArrayList<*>
 
-            for (classType in listOfClassTypeToCreateStub) {
-                val targetClassDeclaration = (classType as KSType).declaration as KSClassDeclaration
-                file += "class Stub${targetClassDeclaration.simpleName.asString()} {"
-                declareStubMethods(file, targetClassDeclaration)
-                file += "}"
-                file += "\n"
-                logger.info("completed for class ${targetClassDeclaration.simpleName.asString()}")
+            for (targetClass in targetClasses) {
+                val targetClassDeclaration = (targetClass as KSType).declaration as KSClassDeclaration
+                targetClassDeclaration.accept(StubTargetVisitor(file, logger), Unit)
+                logger.info("generated stub for ${targetClassDeclaration.simpleName.asString()}")
             }
         }
 
-        private fun declareStubMethods(file: OutputStream, targetClassDeclaration: KSClassDeclaration) {
-            val functions = targetClassDeclaration.getAllFunctions()
-            for (ksFunctionDeclaration in functions) {
-                declareMethod(ksFunctionDeclaration, file)
+    }
+
+    inner class StubTargetVisitor(
+        private val file: OutputStream,
+        private val logger: KSPLogger
+    ): KSVisitorVoid() {
+
+        override fun visitClassDeclaration(classDeclaration: KSClassDeclaration, data: Unit) {
+            file += "class Stub${classDeclaration.simpleName.asString()} {\n"
+            val functions = classDeclaration.getAllFunctions()
+            for (function in functions) {
+                function.accept(this, Unit)
             }
+            file += "\n}"
+            file += "\n"
         }
 
-        private fun declareMethod(
-            ksFunctionDeclaration: KSFunctionDeclaration,
-            file: OutputStream
-        ) {
-            val functionName = ksFunctionDeclaration.simpleName.asString()
+        override fun visitFunctionDeclaration(function: KSFunctionDeclaration, data: Unit) {
+            val functionName = function.simpleName.asString()
             if (functionName in OBJECT_FUNCTIONS) {
                 return
             }
-            // a line before function declaration
-            file += ""
-            val params = ksFunctionDeclaration.parameters.iterator()
-            val parameterCode = StringBuilder().apply {
-                for (param in params) {
-                    val resolvedType = param.type.resolve()
-                    val nullability = "?".takeIf { resolvedType.nullability == NULLABLE }.orEmpty()
-                    append("\t\t")
-                    val paramName = param.name!!.asString()
-                    val paramType = resolvedType.declaration.qualifiedName?.asString()
-                    append("""$paramName : $paramType${genericType(resolvedType)}${nullability}, """)
-                    if (params.hasNext()) {
-                        append('\n')
-                    }
-                }
-            }
-
+            // an empty line before function declaration
+            file += "\n"
             file += "\tfun $functionName("
-            file += "$parameterCode"
-            file += "\t) {"
+            val functionArguments = function.parameters
+            for (argument in functionArguments) {
+                val argName = argument.name!!.asString()
+                val type: KSTypeReference = argument.type
+                val resolvedArgumentType: KSType = type.resolve()
+                val argType: String = resolvedArgumentType.declaration.qualifiedName!!.asString()
+                val nullability = "?".takeIf { resolvedArgumentType.nullability == NULLABLE }.orEmpty()
+                // argumentName: ObjectType
+                // eg:
+                // name: String,
+                // age: Int,
+                file += "\n\t\t$argName: $argType"
+                // processing generic types
+                visitTypeArguments(type.element?.typeArguments ?: emptyList())
+                file += "${nullability},"
+            }
+            file += "\n\t) {"
             file += ""
-            file += "\t}"
+            file += "\t}\n"
+            // an empty line after function
         }
 
-        private fun genericType(resolvedType: KSType): String {
-            val typeParameters = resolvedType.declaration.typeParameters.ifEmpty {
-                return ""
+        private fun visitTypeArguments(typeArguments: List<KSTypeArgument>) {
+            if (typeArguments.isNotEmpty()) {
+                file += "<"
+                for ((index, typeArgument) in typeArguments.withIndex()) {
+                    typeArgument.accept(this, Unit)
+                    if (index < typeArguments.size - 1) file += ", "
+                }
+                file += ">"
             }
-            return typeParameters.joinToString(", ", prefix = "<", postfix = ">") { "*" }
         }
 
         override fun visitTypeArgument(typeArgument: KSTypeArgument, data: Unit) {
@@ -147,6 +157,16 @@ class MySymbolProcessor(
                     // do nothing
                 }
             }
+            val resolvedType: KSType? = typeArgument.type?.resolve()
+            file += resolvedType?.declaration?.qualifiedName?.asString() ?: run {
+                logger.error("Invalid type argument", typeArgument)
+                return
+            }
+            file += if (resolvedType?.nullability == NULLABLE) "?" else ""
+
+            val genericArguments: List<KSTypeArgument> = typeArgument.type?.element?.typeArguments ?: emptyList()
+            // a type inside a type. this traversal continues until all the generic types are resolved
+            visitTypeArguments(genericArguments)
         }
 
     }
