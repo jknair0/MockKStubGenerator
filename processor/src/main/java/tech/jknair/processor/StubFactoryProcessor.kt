@@ -29,18 +29,9 @@ internal class MySymbolProcessor(
             showNotInterfaceError(annotatedClasses)
             return emptyList()
         }
+        // read information from each annotated classes
         for (annotatedClass in annotatedClasses) {
-            // get declared interface package name
-            val packageName = annotatedClass.packageName.asString()
-            val file: OutputStream = codeGenerator.createNewFile(
-                dependencies = Dependencies(false, *resolver.getAllFiles().toList().toTypedArray()),
-                packageName = packageName,
-                fileName = "${annotatedClass.simpleName.asString()}_TestStubs"
-            )
-            // using the same package name
-            file += "package ${packageName}\n\n"
-            annotatedClass.accept(StubFactoryAnnotationVisitor(file, logger), Unit)
-            file.close()
+            annotatedClass.accept(StubFactoryAnnotationVisitor(codeGenerator, logger), Unit)
         }
         return annotatedClasses.filterNot { it.validate() }.toList()
     }

@@ -1,5 +1,7 @@
 package tech.jknair.processor
 
+import com.google.devtools.ksp.processing.CodeGenerator
+import com.google.devtools.ksp.processing.Dependencies
 import com.google.devtools.ksp.processing.KSPLogger
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSType
@@ -9,7 +11,7 @@ import tech.jknair.processor.annotations.StubFactory
 import java.io.OutputStream
 
 internal class StubFactoryAnnotationVisitor(
-    private val file: OutputStream,
+    private val codeGenerator: CodeGenerator,
     private val logger: KSPLogger
 ) : KSVisitorVoid() {
 
@@ -18,15 +20,26 @@ internal class StubFactoryAnnotationVisitor(
             it.shortName.asString() == StubFactory::class.simpleName
         }
 
+        // accessing the StubFactory argument
         val targetClassArgument: KSValueArgument = stubFactoryAnnotation.arguments.first { arg ->
             arg.name?.asString() == "targetClass"
         }
 
+        // accessing StubFactory argument value
         val targetClasses = targetClassArgument.value as ArrayList<*>
 
+        // going through each class whose stubs will be generated
         for (targetClass in targetClasses) {
             val targetClassDeclaration = (targetClass as KSType).declaration as KSClassDeclaration
-            targetClassDeclaration.accept(StubTargetVisitor(file, logger), Unit)
+            val packageName = targetClassDeclaration.packageName.asString()
+            codeGenerator.createNewFile(
+                dependencies = Dependencies(false),
+                packageName = packageName,
+                fileName = "Stub${targetClassDeclaration.simpleName.asString()}"
+            ).use { file ->
+                file += "package ${packageName}\n\n"
+                targetClassDeclaration.accept(StubTargetVisitor(file, logger), Unit)
+            }
             logger.info("generated stub for ${targetClassDeclaration.simpleName.asString()}")
         }
     }
