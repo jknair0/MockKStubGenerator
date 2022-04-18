@@ -7,8 +7,7 @@ import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSType
 import com.google.devtools.ksp.symbol.KSValueArgument
 import com.google.devtools.ksp.symbol.KSVisitorVoid
-import tech.jknair.processor.annotations.StubFactory
-import java.io.OutputStream
+import tech.jknair.annotations.StubFactory
 
 internal class StubFactoryAnnotationVisitor(
     private val codeGenerator: CodeGenerator,

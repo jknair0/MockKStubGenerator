@@ -12,7 +12,8 @@ dependencyResolutionManagement {
     mavenCentral()
   }
 }
-rootProject.name = "simpleksp"
-include ':app'
+rootProject.name = "MockkStubGenerator"
+include ':example'
 include ':processor'
-include ':stub'
+include ':example-stub'
+include ':annotation'

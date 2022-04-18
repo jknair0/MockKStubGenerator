@@ -133,7 +133,6 @@ internal class StubTargetVisitor(
 
         private const val MOCKK_EVERY = "io.mockk.every"
         private const val MOCKK_CO_EVERY = "io.mockk.coEvery"
-        private const val MOCKK_INIT_CALL = "io.mockk.mockk()"
     }
 
 }
