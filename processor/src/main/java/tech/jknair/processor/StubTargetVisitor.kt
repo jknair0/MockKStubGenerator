@@ -26,7 +26,7 @@ internal class StubTargetVisitor(
     override fun visitClassDeclaration(classDeclaration: KSClassDeclaration, data: Unit) {
         targetClassName = classDeclaration.simpleName.asString()
         val targetClassFullyQualifiedName = classDeclaration.qualifiedName!!.asString()
-        file += "class Stub$targetClassName(private val mocked${targetClassName}: $targetClassFullyQualifiedName = io.mockk.mockk()) {\n"
+        file += "open class Stub$targetClassName(private val mocked${targetClassName}: $targetClassFullyQualifiedName = io.mockk.mockk()) {\n"
 
         val functions = classDeclaration.getAllFunctions()
         for (function in functions) {
@@ -41,10 +41,15 @@ internal class StubTargetVisitor(
         if (functionName in IN_BUILT_FUNCTIONS) {
             return
         }
+
+        val functionArguments = function.parameters
+        if (functionArguments.any { it.type.resolve().isFunctionType }) {
+            // stub for function arguments with function types are ignored
+            return
+        }
         // an empty line before function declaration
         file += "\n"
         file += "\tfun $functionName("
-        val functionArguments = function.parameters
         val argsNames = mutableListOf<String>()
         for (argument in functionArguments) {
             val argName = argument.name!!.asString()
@@ -133,7 +138,6 @@ internal class StubTargetVisitor(
 
         private const val MOCKK_EVERY = "io.mockk.every"
         private const val MOCKK_CO_EVERY = "io.mockk.coEvery"
-        private const val MOCKK_INIT_CALL = "io.mockk.mockk()"
     }
 
 }
