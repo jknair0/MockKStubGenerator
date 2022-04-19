@@ -4,5 +4,5 @@ import kotlin.reflect.KClass
 
 @Target(AnnotationTarget.CLASS)
 annotation class StubFactory(
-    vararg val targetClass: KClass<*>
+    val targetClass: Array<KClass<*>>
 )

@@ -11,8 +11,12 @@ import org.junit.Assert.*
  */
 class ExampleUnitTest {
 
+    private val stubSomeRepository = StubSomeRepository()
+    private val stubSomeOtherRepository = StubSomeOtherRepository()
+
     @Test
     fun addition_isCorrect() {
         assertEquals(4, 2 + 2)
+        stubSomeOtherRepository.funWithNullables(123, "some random message")
     }
 }

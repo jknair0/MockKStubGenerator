@@ -6,8 +6,10 @@ import tech.jknair.simpleksp.SomeOtherRepository
 import tech.jknair.simpleksp.SomeRepository
 
 @StubFactory(
-    SomeRepository::class,
-    SomeOtherRepository::class,
-    SomeConcreteClass::class
+    targetClass = [
+        SomeRepository::class,
+        SomeOtherRepository::class,
+        SomeConcreteClass::class
+    ]
 )
 interface SampleClass

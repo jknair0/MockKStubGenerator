@@ -27,4 +27,6 @@ interface SomeOtherRepository {
 
     suspend fun suspendFunTheReturns(code: Int, message: String): HashMap<Pair<String, *>, String?>
 
+    fun getConfig(callback: (value: Int) -> Unit)
+
 }
